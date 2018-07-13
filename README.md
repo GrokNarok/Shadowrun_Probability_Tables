@@ -18,6 +18,8 @@ To regenerate the tables uploaded to this repo type:<br />
 <br />
 `compareD3Pools x y` (e.i. `compareD3PoolsR 5 3`)<br />
 This will print a list of probabilities of getting net hits, staring at 0 net hits (tie), on an opposed roll between die pools of sizes x and y. <br />
+`compareD3PoolsGE` same as `compareD3Pools` but gives probabilities for "x or more" hits instead of exact hits.<br />
 <br />
 `getDistrForD3Pool x` (e.i. `getDistrForD3Pool 8`)<br />
 This will print a list of probabilities of getting hits, staring at 0 hits, with a die pool of size x.<br />
+`getDistrForD3PoolGE` same as `getDistrForD3Pool` but gives probabilities for "x or more" hits instead of exact hits.<br />
