@@ -1,5 +1,7 @@
 # Shadowrun_Probability_Tables
 
+Final tables can be found [here](https://imgur.com/a/lrGKDF1).
+
 Here you'll find probability tables (in jpeg, pdf and TeX) for opposed rolls in [Shadowrun 5e](https://en.wikipedia.org/wiki/Shadowrun) and Haskell script that was used to generate them. If you don't play Shadowrun you probably won't find this too relevant.
 
 Quick Shadowrun rule summary:<br />
