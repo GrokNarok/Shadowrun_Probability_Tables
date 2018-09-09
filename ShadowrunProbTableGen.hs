@@ -22,10 +22,6 @@ getProbMass k n p = fromIntegral (binomial n k) * p^^k * (1-p)^^(n-k)
 getDistr :: (Integral i, Floating f) => i -> f -> [f]
 getDistr n p = map (\ k -> getProbMass k n p) [0..n]
 
-getDistrReroll n p = 
-                     where baseDistr = getDistr n p
-                           reroll x = map (*(baseDistr!!x)) $ getDistr x p
-
 -- Multiplies a one-column and a one-row matrices with input matrices represented by 2 lists
 matMult :: Num a => [a] -> [a] -> Mat.Matrix a
 matMult a b = Mat.multStd (Mat.colVector $ Vec.fromList $ b) (Mat.rowVector $ Vec.fromList $ a)
