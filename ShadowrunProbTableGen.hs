@@ -3,9 +3,10 @@ import           Data.List.Split
 import qualified Data.Vector as Vec
 import qualified Data.Matrix as Mat
 import           Numeric
-
-import System.IO
-import Data.Char
+import           System.IO
+import           System.Environment 
+import           Control.Exception
+import           Data.Char
 
 -- Gets binomial coefficient (here n are trials and k are successes, see getProbMass)
 binomial :: (Integral i) => i -> i -> i
@@ -20,6 +21,10 @@ getProbMass k n p = fromIntegral (binomial n k) * p^^k * (1-p)^^(n-k)
 -- Gets probability mass distribution for n trials with probability of success p
 getDistr :: (Integral i, Floating f) => i -> f -> [f]
 getDistr n p = map (\ k -> getProbMass k n p) [0..n]
+
+getDistrReroll n p = 
+                     where baseDistr = getDistr n p
+                           reroll x = map (*(baseDistr!!x)) $ getDistr x p
 
 -- Multiplies a one-column and a one-row matrices with input matrices represented by 2 lists
 matMult :: Num a => [a] -> [a] -> Mat.Matrix a
@@ -62,12 +67,15 @@ d :: (Integral i, Floating f) => i -> i -> [f]
 d n x = getDistr n (1 / fromIntegral x)
 
 -- Get the odds of getting [0..r] net hits on an opposed roll of d3 pools of size x and y
+compareD3PoolsR :: (Floating f) => Int -> Int -> [Int] -> [f]
 compareD3PoolsR a b r = compareDistrGE (a`d`3) (b`d`3) r
 
 -- Get the odds of getting [0..4] net hits on an opposed roll of d3 pools of size x and y
+compareD3PoolsTo4 :: (Floating f) => Int -> Int -> [f]
 compareD3PoolsTo4 a b = padListTo 5 $ compareD3PoolsR a b [0..4]
 
 -- Get the odds of getting [0..4] net hits on opposed rolls of all combination of die pools sizes in ranges xr and yr
+compareD3PoolsOver :: (Floating f) => [Int] -> [Int] -> [[[f]]]
 compareD3PoolsOver xr yr = chunksOf (length xr) $ (flip compareD3PoolsTo4) <$> yr <*> xr
 
 -- Takes a Float and Turns it into a pretty string for printing
@@ -104,9 +112,18 @@ makeTable xr yr =
  ++ "\\end{tabular}}}}\n"
  ++ "\\end{document}\n"
 
-writeTeXFile name xr yr = writeFile name $ makeTable xr yr
+-- User input processing functions
+tablesFromArgs :: IO ()
+tablesFromArgs = do args@(name:a:b:c:d:[]) <- getArgs
+                    writeFile name $ makeTable [(read a) .. (read b)] [(read c) .. (read d)]
+                    putStrLn $ "Probability table for " ++ a ++ "-" ++ b ++ " x " ++ c ++ "-" ++ d ++ " die pools generated."
 
-main = writeTeXFile "probs1.tex" [1..10] [1..30] >> writeTeXFile "probs2.tex" [11..20] [1..30] >> writeTeXFile "probs3.tex" [21..30] [1..30]
+defaultTables :: IOError -> IO ()
+defaultTables _ = writeTeXFile "probs1.tex" [1..10] [1..30] >> writeTeXFile "probs2.tex" [11..20] [1..30] >> writeTeXFile "probs3.tex" [21..30] [1..30] >>
+                  putStrLn "Standard probability tables generated (No parameters or invalid parameters provided)."
+                  where writeTeXFile name xr yr = writeFile name $ makeTable xr yr
+
+main = tablesFromArgs `catch` defaultTables
 
 -- Functions for getting intermediate results in a more readable format. see the readme.md for usage
 getDistrForD3Pool n = map formatPercent $ n`d`3
