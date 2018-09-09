@@ -7,16 +7,18 @@ Here you'll find probability tables (in jpeg, pdf and TeX) for opposed rolls in 
 Quick Shadowrun rule summary:<br />
 Contests in Shadowrun are resolved by rolling a number of d6 (six-sided) dice and counting "hits" - 5s or 6s rolled, more hits is better. A Player and the Game Master both roll a set of dice and count hits scored, whoever has more hits wins the contest. More "net hits" (your hits minus opponent's hits) constitutes a higher degree of success. The tables generated here answer a question like "What is the chance I will get 1 or more net hits if I'm rolling 14 dice and the opponent is rolling 11 dice?" (it's 58.3%)
 
-Using the script:<br />
-Just load the script in ghci.
-
-Useful functions:<br />
-`writeTeXFile "fileName" \[player die pool range] \[opponent die pool range]`  (e.i. `writeTeXFile "probs1.tex" \[1..10] \[1..30]`)
+**Using the script:**<br />
+Compile/interpret `ShadowrunProbTableGen.hs`.<br />
+Run `ShadowrunProbTableGen "OutputFileName.tex" [player die pool low bound] [player die pool high bound] [opponent die pool low bound] [opponent die pool high bound]`<br />
+(e.i. `ShadowrunProbTableGen "myProbs.tex" 1 10 1 30`)<br />
 This will generate a table in .TeX format and write into a file under provided name. The table has the probabilities for opposed rolls between die pools of sizes specified by the ranges. Any ranges can be specified but the TeX is optimised for 10 by 30 size as that fits on a page nicely without been to small to read. You'll need a loot to read TeX files or convert them to other formats, I used `TeXstudio`.<br />
+<br />
 To regenerate the tables uploaded to this repo type:<br />
-`writeTeXFile "probs1.tex" \[1..10] \[1..30]`<br />
-`writeTeXFile "probs2.tex" \[11..20] \[1..30]`<br />
-`writeTeXFile "probs3.tex" \[21..30] \[1..30]`<br />
+`ShadowrunProbTableGen "probs1.tex" 1 10 1 30`<br />
+`ShadowrunProbTableGen "probs2.tex" 11 20 1 30`<br />
+`ShadowrunProbTableGen "probs3.tex" 21 30 1 30`<br />
+<br />
+Oterwise you can load `ShadowrunProbTableGen.hs` into `ghci` to get access to following useful functions:<br />
 <br />
 `compareD3Pools x y` (e.i. `compareD3PoolsR 5 3`)<br />
 This will print a list of probabilities of getting net hits, staring at 0 net hits (tie), on an opposed roll between die pools of sizes x and y. <br />
