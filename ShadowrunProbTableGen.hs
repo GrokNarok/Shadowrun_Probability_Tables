@@ -19,11 +19,11 @@ getProbMass :: (Integral i, Floating f) => i -> i -> f -> f
 getProbMass k n p = fromIntegral (binomial n k) * p^^k * (1-p)^^(n-k)
 
 -- Gets probability mass distribution for n trials with probability of success p
-getDistr :: (Integral i, Floating f) => i -> f -> [f]
+getDistr :: (Floating f) => Int -> f -> [f]
 getDistr n p = map (\ k -> getProbMass k n p) [0..n]
 
 -- This is the same as getDistr but if all failed rolls (trials) are retried once.
-getDistrReroll :: (Integral i, Floating f) => i -> f -> [f]
+getDistrReroll :: (Floating f) => Int -> f -> [f]
 getDistrReroll n p = foldr (zipWith (+)) (repeat 0.0) rerolls
                      where baseDistr = getDistr n p
                            reroll x = (take (n-x) $ repeat 0.0) ++ (map (*(baseDistr!!(n-x))) $ getDistr x p)
@@ -49,7 +49,7 @@ getDiag x m =
 -- (number of net successes looked at is defined by r as a range, e.g. r=[0..2] will get odds of 0,1 and 2 net successes)
 compareDistr ::  Num a => [a] -> [a] -> [Int] -> [a]
 compareDistr a b [] = compareDistr a b [((length b) * (-1) + 1)..((length a) - 1)]
-compareDistr a b r = map (\x -> sum $ getDiag x m) r where m = matMult a b
+compareDistr a b r = map (\x -> sum $ getDiag x $ matMult a b) r
 
 -- 
 helper :: Num a => a -> [a] -> [a]
@@ -66,7 +66,7 @@ padListTo :: Floating f => Int -> [f] -> [f]
 padListTo n xs = take n (xs ++ repeat 0.0)
 
 -- Gets probability mass distribution for getting one specific outcome rolling n dice with x sides (write as 4`d`6 - four 6-sided dice)
-d :: (Integral i, Floating f) => i -> i -> [f]
+d :: (Integral i, Floating f) => Int -> i -> [f]
 d n x = getDistr n (1 / fromIntegral x)
 
 -- Get the odds of getting [0..r] net hits on an opposed roll of d3 pools of size x and y
