@@ -9,20 +9,23 @@ Contests in Shadowrun are resolved by rolling a number of d6 (six-sided) dice an
 
 **Using the script:**<br />
 Compile/interpret `ShadowrunProbTableGen.hs`.<br />
-Run `ShadowrunProbTableGen "OutputFileName.tex" [player die pool low bound] [player die pool high bound] [opponent die pool low bound] [opponent die pool high bound]`<br />
-(e.i. `ShadowrunProbTableGen "myProbs.tex" 1 10 1 30`)<br />
-This will generate a table in .TeX format and write into a file under provided name. The table has the probabilities for opposed rolls between die pools of sizes specified by the ranges. Any ranges can be specified but the TeX is optimised for 10 by 30 size as that fits on a page nicely without been to small to read. You'll need a loot to read TeX files or convert them to other formats, I used `TeXstudio`.<br />
+Run `ShadowrunProbTableGen "OutputFileName.tex" [Normal|Reroll] [player die pool low bound] [player die pool high bound] [Normal|Reroll] [opponent die pool low bound] [opponent die pool high bound]`<br />
+(e.i. `ShadowrunProbTableGen "myProbs.tex" Reroll 1 10 Normal 1 30`, note capitalisation)<br />
+This will generate a table in .TeX format and write into a file under provided name. The table has the probabilities for opposed rolls between die pools of sizes specified by the ranges. `Normal` is for a normal roll, `Reroll` is for a roll with one reroll of misses. Any ranges can be specified but the TeX is optimised for 10 by 30 size as that fits on a page nicely without been to small to read. You'll need a loot to read TeX files or convert them to other formats, I used `TeXstudio`.<br />
 <br />
 To regenerate the tables uploaded to this repo type:<br />
-`ShadowrunProbTableGen "probs1.tex" 1 10 1 30`<br />
-`ShadowrunProbTableGen "probs2.tex" 11 20 1 30`<br />
-`ShadowrunProbTableGen "probs3.tex" 21 30 1 30`<br />
+`ShadowrunProbTableGen "probs1.tex" Normal 1 10 Normal 1 30`<br />
+`ShadowrunProbTableGen "probs2.tex" Normal 11 20 Normal 1 30`<br />
+`ShadowrunProbTableGen "probs3.tex" Normal 21 30 Normal 1 30`<br />
+`ShadowrunProbTableGen "probs1.tex" Reroll 1 10 Normal 1 30`<br />
+`ShadowrunProbTableGen "probs2.tex" Reroll 11 20 Normal 1 30`<br />
+`ShadowrunProbTableGen "probs3.tex" Reroll 21 30 Normal 1 30`<br />
 <br />
 Oterwise you can load `ShadowrunProbTableGen.hs` into `ghci` to get access to following useful functions:<br />
 <br />
-`compareD3Pools x y` (e.i. `compareD3PoolsR 5 3`)<br />
+`getComparisonOfD3Pools x y` (e.i. `getComparisonOfD3Pools 5 3`)<br />
 This will print a list of probabilities of getting net hits, staring at 0 net hits (tie), on an opposed roll between die pools of sizes x and y. <br />
-`compareD3PoolsGE` same as `compareD3Pools` but gives probabilities for "x or more" hits instead of exact hits.<br />
+`getComparisonOfD3PoolsGE` same as `getComparisonOfD3Pools` but gives probabilities for "x or more" hits instead of exact hits.<br />
 <br />
 `getDistrForD3Pool x` (e.i. `getDistrForD3Pool 8`)<br />
 This will print a list of probabilities of getting hits, staring at 0 hits, with a die pool of size x.<br />
