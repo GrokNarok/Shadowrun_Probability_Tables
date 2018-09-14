@@ -8,6 +8,8 @@ import           System.Environment
 import           Control.Exception
 import           Data.Char
 
+data RollStyle = Normal | Reroll deriving (Eq, Show, Read, Enum) 
+
 -- Gets binomial coefficient (here n are trials and k are successes, see getProbMass)
 binomial :: (Integral i) => i -> i -> i
 binomial n 0 = 1
@@ -35,53 +37,40 @@ matMult a b = Mat.multStd (Mat.colVector $ Vec.fromList $ b) (Mat.rowVector $ Ve
 
 -- Gets a specific matrix diagonal specified by x, x=0 gets true diagonal x=1 gets diagonal starting at (1,0) element, x=-1 - (0,1) elem etc.
 getDiag:: Int -> Mat.Matrix a -> Vec.Vector a
-getDiag x m = 
- if x >= 0
-  then
-   Vec.generate k (\i -> Mat.getElem (i+1) (i+x+1) m)
-  else
-   Vec.generate j (\i -> Mat.getElem (i-x+1) (i+1) m)
- where
-  k = min ((Mat.ncols m) - x) (Mat.nrows m)
-  j = min (Mat.ncols m) ((Mat.nrows m) + x)
+getDiag x m
+ | x >= 0    = Vec.generate k (\i -> Mat.getElem (i+1) (i+x+1) m)
+ | otherwise = Vec.generate j (\i -> Mat.getElem (i-x+1) (i+1) m)
+ where k = min ((Mat.ncols m) - x) (Mat.nrows m)
+       j = min (Mat.ncols m) ((Mat.nrows m) + x)
 
 -- Compares two probability mass distributions and calculates the odds that distr A will get more successes then distr B
 -- (number of net successes looked at is defined by r as a range, e.g. r=[0..2] will get odds of 0,1 and 2 net successes)
-compareDistr ::  Num a => [a] -> [a] -> [Int] -> [a]
-compareDistr a b [] = compareDistr a b [((length b) * (-1) + 1)..((length a) - 1)]
-compareDistr a b r = map (\x -> sum $ getDiag x $ matMult a b) r
+compareDistr ::  Num a => [Int] -> [a] -> [a] -> [a]
+compareDistr [] a b = compareDistr [((length b) * (-1) + 1)..((length a) - 1)] a b
+compareDistr r a b  = map (\x -> sum $ getDiag x $ matMult a b) r
 
--- 
-helper :: Num a => a -> [a] -> [a]
-helper x [] = [x]
-helper x acc = (x + (head acc)):acc
-
--- Same as compareDistr but calculates odds of [number] or more net successes
-compareDistrGE ::  Num a => [a] -> [a] -> [Int] -> [a]
-compareDistrGE a b [] = compareDistrGE a b [((length b) * (-1) + 1)..((length a) - 1)]
-compareDistrGE a b r = take x $ foldr helper [] $ compareDistr a b [(head r)..((length a) - 1)] where x = (last r) - (head r) + 1
-
--- Takes a list of floats and if the list is shorter then n adds 0.0s up to n
-padListTo :: Floating f => Int -> [f] -> [f]
-padListTo n xs = take n (xs ++ repeat 0.0)
+-- Takes a list and replaces every element with the sum of it and all elements that follow it.
+convertToGE :: Num a => [a] -> [a]
+convertToGE []     = []
+convertToGE (x:xs) = (x + sum xs):(convertToGE xs)
 
 -- Gets probability mass distribution for getting one specific outcome rolling n dice with x sides (write as 4`d`6 - four 6-sided dice)
 d :: (Integral i, Floating f) => Int -> i -> [f]
 d n x = getDistr n (1 / fromIntegral x)
 
--- Get the odds of getting [0..r] net hits on an opposed roll of d3 pools of size x and y
-compareD3PoolsR :: (Floating f) => Int -> Int -> [Int] -> [f]
-compareD3PoolsR a b r = compareDistrGE (a`d`3) (b`d`3) r
-
--- Get the odds of getting [0..4] net hits on an opposed roll of d3 pools of size x and y
-compareD3PoolsTo4 :: (Floating f) => Int -> Int -> [f]
-compareD3PoolsTo4 a b = padListTo 5 $ compareD3PoolsR a b [0..4]
+-- Get the odds of getting [0..r] net hits or more on an opposed roll of d3 pools of size x and y
+compareD3Pools :: (Floating f) => [Int] -> RollStyle -> RollStyle -> Int -> Int -> [f]
+compareD3Pools r rsA rsB a b = map (comparison!!) r
+                               where comparison = convertToGE $ compareDistr [0..(max a (last r))] (makeDistr rsA a) (makeDistr rsB b)
+                                     makeDistr rs n = case rs of Normal -> n`d`3
+                                                                 Reroll -> getDistrReroll n (1 / fromIntegral 3)
 
 -- Get the odds of getting [0..4] net hits on opposed rolls of all combination of die pools sizes in ranges xr and yr
-compareD3PoolsOver :: (Floating f) => [Int] -> [Int] -> [[[f]]]
-compareD3PoolsOver xr yr = chunksOf (length xr) $ (flip compareD3PoolsTo4) <$> yr <*> xr
+generateTableValues :: (Floating f) => RollStyle -> RollStyle -> [Int] -> [Int] -> [[[f]]]
+generateTableValues rsA rsB xr yr = chunksOf (length xr) $ (flip $ compareD3Pools [0..4] rsA rsB) <$> yr <*> xr
 
 -- Takes a Float and Turns it into a pretty string for printing
+formatPercent :: (RealFloat f) => f -> String
 formatPercent f
  | p >= 99.9 = showFFloat (Just 0) p ""
  | p >= 9.99 = showFFloat (Just 1) p ""
@@ -95,8 +84,8 @@ makeCell xs = " & $\\frac{\\textbf{" ++ xs!!0 ++ "/" ++ xs!!1 ++ "}}{" ++ xs!!2 
 makeRow :: Int -> [[[Char]]] -> [Char]
 makeRow n xs = (show n) ++ (concat $ map makeCell xs) ++ " \\\\\n\\hline\n"
 
-makeTable :: [Int] -> [Int] -> [Char]
-makeTable xr yr =
+makeTable :: RollStyle -> RollStyle -> [Int] -> [Int] -> [Char]
+makeTable rsA rsB xr yr =
     "\\documentclass{slides}\n"
  ++ "\\usepackage{graphicx}\n"
  ++ "\\usepackage{slashbox}\n"
@@ -109,27 +98,27 @@ makeTable xr yr =
  ++ "\\multicolumn{" ++ (show $ (length xr)+1) ++ "}{c}{Each cell gives probabilities for getting x or more net hits on opposing roll, where x is 0-4, as following: $\\frac{\\textbf{0/1}}{2/3/4}$}\\\\"
  ++ "\\hline\n"
  ++ "\\rowcolor{blue!15}\n"
- ++ "\\backslashbox{Them}{You}" ++ (concat $ take (length xr) $ map (\b -> " & " ++ show b) ([(head xr)..])) ++ " \\\\\n"
+ ++ "\\backslashbox{Them}{You}" ++ (concat $ take (length xr) $ map (\b -> " & " ++ show b) [(head xr)..]) ++ " \\\\\n"
  ++ "\\hline\n"
- ++ (concat $ zipWith makeRow [(head yr)..] $ (map.map.map) formatPercent $ compareD3PoolsOver xr yr)
+ ++ (concat $ zipWith makeRow [(head yr)..] $ (map.map.map) formatPercent $ generateTableValues rsA rsB xr yr)
  ++ "\\end{tabular}}}}\n"
  ++ "\\end{document}\n"
 
 -- User input processing functions
 tablesFromArgs :: IO ()
-tablesFromArgs = do args@(name:a:b:c:d:[]) <- getArgs
-                    writeFile name $ makeTable [(read a) .. (read b)] [(read c) .. (read d)]
+tablesFromArgs = do (name:rsA:a:b:rsB:c:d:[]) <- getArgs
+                    writeFile name $ makeTable (read rsA) (read rsB) [(read a) .. (read b)] [(read c) .. (read d)]
                     putStrLn $ "Probability table for " ++ a ++ "-" ++ b ++ " x " ++ c ++ "-" ++ d ++ " die pools generated."
 
 defaultTables :: IOError -> IO ()
 defaultTables _ = writeTeXFile "probs1.tex" [1..10] [1..30] >> writeTeXFile "probs2.tex" [11..20] [1..30] >> writeTeXFile "probs3.tex" [21..30] [1..30] >>
                   putStrLn "Standard probability tables generated (No parameters or invalid parameters provided)."
-                  where writeTeXFile name xr yr = writeFile name $ makeTable xr yr
+                  where writeTeXFile name xr yr = writeFile name $ makeTable Normal Normal xr yr
 
 main = tablesFromArgs `catch` defaultTables
 
--- Functions for getting intermediate results in a more readable format. see the readme.md for usage
+-- Functions for getting intermediate results in a more readable format (See the readme.md for usage)
 getDistrForD3Pool n = map formatPercent $ n`d`3
-getDistrForD3PoolGE n = map formatPercent $ foldr helper [] $ n`d`3
-compareD3Pools a b = map formatPercent $ compareDistr (a`d`3) (b`d`3) [0..a]
-compareD3PoolsGE a b = map formatPercent $ compareDistrGE (a`d`3) (b`d`3) [0..a]
+getDistrForD3PoolGE n = map formatPercent $ convertToGE $ n`d`3
+getComparisonOfD3Pools a b = map formatPercent $ compareDistr [0..a] (a`d`3) (b`d`3)
+getComparisonOfD3PoolsGE a b = map formatPercent $ convertToGE $ compareDistr [0..a] (a`d`3) (b`d`3)
