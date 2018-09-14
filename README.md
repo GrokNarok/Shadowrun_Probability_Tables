@@ -17,9 +17,9 @@ To regenerate the tables uploaded to this repo type:<br />
 `ShadowrunProbTableGen "probs1.tex" Normal 1 10 Normal 1 30`<br />
 `ShadowrunProbTableGen "probs2.tex" Normal 11 20 Normal 1 30`<br />
 `ShadowrunProbTableGen "probs3.tex" Normal 21 30 Normal 1 30`<br />
-`ShadowrunProbTableGen "probs1.tex" Reroll 1 10 Normal 1 30`<br />
-`ShadowrunProbTableGen "probs2.tex" Reroll 11 20 Normal 1 30`<br />
-`ShadowrunProbTableGen "probs3.tex" Reroll 21 30 Normal 1 30`<br />
+`ShadowrunProbTableGen "probsReroll1.tex" Reroll 1 10 Normal 1 30`<br />
+`ShadowrunProbTableGen "probsReroll2.tex" Reroll 11 20 Normal 1 30`<br />
+`ShadowrunProbTableGen "probsReroll3.tex" Reroll 21 30 Normal 1 30`<br />
 <br />
 Oterwise you can load `ShadowrunProbTableGen.hs` into `ghci` to get access to following useful functions:<br />
 <br />
