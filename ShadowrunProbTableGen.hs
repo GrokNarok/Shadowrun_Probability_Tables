@@ -1,7 +1,5 @@
 import           Data.List
 import           Data.List.Split
-import qualified Data.Vector as Vec
-import qualified Data.Matrix as Mat
 import           Numeric
 import           System.IO
 import           System.Environment 
@@ -20,50 +18,32 @@ binomial n k = binomial (n-1) (k-1) * n `div` k
 getProbMass :: (Integral i, Floating f) => i -> i -> f -> f
 getProbMass k n p = fromIntegral (binomial n k) * p^^k * (1-p)^^(n-k)
 
+-- Generate a list of probabilities of [0,1,..] hits when rolling an exploding die with the chance p
+-- to produce a hit on each roll and chance e of the die exploding (Note: this is an infinite list)
+explosiveDice :: (Floating f) => f -> f -> [f]
+explosiveDice p e = (1-p):[p*(e^^x - e^^(x+1)) | x <- [0,1..]]
+
 -- Gets probability mass distribution for n trials with probability of success p
 getDistr :: (Floating f) => Int -> f -> [f]
 getDistr n p = map (\ k -> getProbMass k n p) [0..n]
-
--- This is the same as getDistr but if all failed rolls (trials) are retried once.
-getDistrReroll :: (Floating f) => Int -> f -> [f]
-getDistrReroll n p = foldr (zipWith (+)) (repeat 0.0) rerolls
-                     where baseDistr = getDistr n p
-                           reroll x = (take (n-x) $ repeat 0.0) ++ (map (*(baseDistr!!(n-x))) $ getDistr x p)
-                           rerolls = map reroll [0..n]
-
--- Multiplies a one-column and a one-row matrices with input matrices represented by 2 lists
-matMult :: Num a => [a] -> [a] -> Mat.Matrix a
-matMult a b = Mat.multStd (Mat.colVector $ Vec.fromList $ b) (Mat.rowVector $ Vec.fromList $ a)
-
--- Gets a specific matrix diagonal specified by x, x=0 gets true diagonal x=1 gets diagonal starting at (1,0) element, x=-1 - (0,1) elem etc.
-getDiag:: Int -> Mat.Matrix a -> Vec.Vector a
-getDiag x m
- | x >= 0    = Vec.generate k (\i -> Mat.getElem (i+1) (i+x+1) m)
- | otherwise = Vec.generate j (\i -> Mat.getElem (i-x+1) (i+1) m)
- where k = min ((Mat.ncols m) - x) (Mat.nrows m)
-       j = min (Mat.ncols m) ((Mat.nrows m) + x)
 
 -- Compares two probability mass distributions and calculates the odds that distr A will get more successes then distr B
 -- (number of net successes looked at is defined by r as a range, e.g. r=[0..2] will get odds of 0,1 and 2 net successes)
 compareDistr ::  Num a => [Int] -> [a] -> [a] -> [a]
 compareDistr [] a b = compareDistr [((length b) * (-1) + 1)..((length a) - 1)] a b
-compareDistr r a b  = map (\x -> sum $ getDiag x $ matMult a b) r
+compareDistr r a b = map (\x -> sum $ zipWith (*) (drop x a) b) r
 
 -- Takes a list and replaces every element with the sum of it and all elements that follow it.
 convertToGE :: Num a => [a] -> [a]
 convertToGE []     = []
 convertToGE (x:xs) = (x + sum xs):(convertToGE xs)
 
--- Gets probability mass distribution for getting one specific outcome rolling n dice with x sides (write as 4`d`6 - four 6-sided dice)
-d :: (Integral i, Floating f) => Int -> i -> [f]
-d n x = getDistr n (1 / fromIntegral x)
-
 -- Get the odds of getting [0..r] net hits or more on an opposed roll of d3 pools of size x and y
 compareD3Pools :: (Floating f) => [Int] -> RollStyle -> RollStyle -> Int -> Int -> [f]
 compareD3Pools r rsA rsB a b = map (comparison!!) r
                                where comparison = convertToGE $ compareDistr [0..(max a (last r))] (makeDistr rsA a) (makeDistr rsB b)
-                                     makeDistr rs n = case rs of Normal -> n`d`3
-                                                                 Reroll -> getDistrReroll n (1 / fromIntegral 3)
+                                     makeDistr rs n = case rs of Normal -> getDistr n (1/3)
+                                                                 Reroll -> getDistr n (5/9)
 
 -- Get the odds of getting [0..4] net hits on opposed rolls of all combination of die pools sizes in ranges xr and yr
 generateTableValues :: (Floating f) => RollStyle -> RollStyle -> [Int] -> [Int] -> [[[f]]]
@@ -122,3 +102,7 @@ getDistrForD3Pool n = map formatPercent $ n`d`3
 getDistrForD3PoolGE n = map formatPercent $ convertToGE $ n`d`3
 getComparisonOfD3Pools a b = map formatPercent $ compareDistr [0..a] (a`d`3) (b`d`3)
 getComparisonOfD3PoolsGE a b = map formatPercent $ convertToGE $ compareDistr [0..a] (a`d`3) (b`d`3)
+
+-- Gets probability mass distribution for getting one specific outcome rolling n dice with x sides (write as 4`d`6 - four 6-sided dice)
+d :: (Integral i, Floating f) => Int -> i -> [f]
+d n x = getDistr n (1 / fromIntegral x)
