@@ -8,15 +8,11 @@ import           Data.Char
 
 data RollStyle = Normal | Reroll deriving (Eq, Show, Read, Enum) 
 
--- Gets binomial coefficient (here n are trials and k are successes, see getProbMass)
-binomial :: (Integral i) => i -> i -> i
-binomial n 0 = 1
-binomial 0 k = 0
-binomial n k = binomial (n-1) (k-1) * n `div` k 
-
--- Gets probability of exactly k successes in n trials with probability of success p
-getProbMass :: (Integral i, Floating f) => i -> i -> f -> f
-getProbMass k n p = fromIntegral (binomial n k) * p^^k * (1-p)^^(n-k)
+-- Multinomial distribution probability mass function
+-- Gets probability of exact list of outcomes xs in n trials with probabilities of success ps
+getProbMass :: (Integral i, Floating f) => [i] -> i -> [f] -> f
+getProbMass xs n ps = (fromIntegral coeff) * (product $ zipWith (^^) ps xs)
+                      where coeff = (product [2..n]) `div` (product $ map (\x -> product [2..x]) xs)
 
 -- Generate a list of probabilities of [0,1,..] hits when rolling an exploding die with the chance p
 -- to produce a hit on each roll and chance e of the die exploding (Note: this is an infinite list)
@@ -24,8 +20,8 @@ explosiveDice :: (Floating f) => f -> f -> [f]
 explosiveDice p e = (1-p):[p*(e^^x - e^^(x+1)) | x <- [0,1..]]
 
 -- Gets probability mass distribution for n trials with probability of success p
-getDistr :: (Floating f) => Int -> f -> [f]
-getDistr n p = map (\ k -> getProbMass k n p) [0..n]
+getDistr :: (Integral i, Floating f) => i -> f -> [f]
+getDistr n p = map (\ k -> getProbMass [(n-k), k] n [(1-p), p]) [0..n]
 
 -- Compares two probability mass distributions and calculates the odds that distr A will get more successes then distr B
 -- (number of net successes looked at is defined by r as a range, e.g. r=[0..2] will get odds of 0,1 and 2 net successes)
@@ -39,14 +35,15 @@ convertToGE []     = []
 convertToGE (x:xs) = (x + sum xs):(convertToGE xs)
 
 -- Get the odds of getting [0..r] net hits or more on an opposed roll of d3 pools of size x and y
-compareD3Pools :: (Floating f) => [Int] -> RollStyle -> RollStyle -> Int -> Int -> [f]
+compareD3Pools :: (Integral i, Floating f) => [Int] -> RollStyle -> RollStyle -> i -> i -> [f]
 compareD3Pools r rsA rsB a b = map (comparison!!) r
-                               where comparison = convertToGE $ compareDistr [0..(max a (last r))] (makeDistr rsA a) (makeDistr rsB b)
+                               where comparison = convertToGE $ compareDistr range (makeDistr rsA a) (makeDistr rsB b)
+                                     range = [0..(max (fromIntegral a) (last r))]
                                      makeDistr rs n = case rs of Normal -> getDistr n (1/3)
                                                                  Reroll -> getDistr n (5/9)
 
 -- Get the odds of getting [0..4] net hits on opposed rolls of all combination of die pools sizes in ranges xr and yr
-generateTableValues :: (Floating f) => RollStyle -> RollStyle -> [Int] -> [Int] -> [[[f]]]
+generateTableValues :: (Integral i, Floating f) => RollStyle -> RollStyle -> [i] -> [i] -> [[[f]]]
 generateTableValues rsA rsB xr yr = chunksOf (length xr) $ (flip $ compareD3Pools [0..4] rsA rsB) <$> yr <*> xr
 
 -- Takes a Float and Turns it into a pretty string for printing
@@ -58,13 +55,14 @@ formatPercent f
  where p = f * 100
 
 -- TeX generating code
-makeCell :: [[Char]] -> [Char]
-makeCell xs = " & $\\frac{\\textbf{" ++ xs!!0 ++ "/" ++ xs!!1 ++ "}}{" ++ xs!!2 ++ "/" ++ xs!!3 ++ "/" ++ xs!!4 ++ "}$"
+makeCell :: (Integral i) => RollStyle -> RollStyle -> i -> i -> String
+makeCell rsA rsB y x = " & $\\frac{\\textbf{" ++ xs!!0 ++ "/" ++ xs!!1 ++ "}}{" ++ xs!!2 ++ "/" ++ xs!!3 ++ "/" ++ xs!!4 ++ "}$"
+                 where xs = map formatPercent $ compareD3Pools [0..4] rsA rsB x y
 
-makeRow :: Int -> [[[Char]]] -> [Char]
-makeRow n xs = (show n) ++ (concat $ map makeCell xs) ++ " \\\\\n\\hline\n"
+makeRow :: (Integral i, Show i) => RollStyle -> RollStyle -> [i] -> i -> String
+makeRow rsA rsB xr y = (show y) ++ (concat $ map (makeCell rsA rsB y) xr) ++ " \\\\\n\\hline\n"
 
-makeTable :: RollStyle -> RollStyle -> [Int] -> [Int] -> [Char]
+makeTable :: (Integral i, Show i) => RollStyle -> RollStyle -> [i] -> [i] -> String
 makeTable rsA rsB xr yr =
     "\\documentclass{slides}\n"
  ++ "\\usepackage{graphicx}\n"
@@ -78,9 +76,9 @@ makeTable rsA rsB xr yr =
  ++ "\\multicolumn{" ++ (show $ (length xr)+1) ++ "}{c}{Each cell gives probabilities for getting x or more net hits on opposing roll, where x is 0-4, as following: $\\frac{\\textbf{0/1}}{2/3/4}$}\\\\"
  ++ "\\hline\n"
  ++ "\\rowcolor{blue!15}\n"
- ++ "\\backslashbox{Them}{You}" ++ (concat $ take (length xr) $ map (\b -> " & " ++ show b) [(head xr)..]) ++ " \\\\\n"
+ ++ "\\backslashbox{Them}{You}" ++ (concat $ take (length xr) $ map (\b -> " & " ++ show b) xr) ++ " \\\\\n"
  ++ "\\hline\n"
- ++ (concat $ zipWith makeRow [(head yr)..] $ (map.map.map) formatPercent $ generateTableValues rsA rsB xr yr)
+ ++ (concat $ map (makeRow rsA rsB xr) yr)
  ++ "\\end{tabular}}}}\n"
  ++ "\\end{document}\n"
 
@@ -104,5 +102,5 @@ getComparisonOfD3Pools a b = map formatPercent $ compareDistr [0..a] (a`d`3) (b`
 getComparisonOfD3PoolsGE a b = map formatPercent $ convertToGE $ compareDistr [0..a] (a`d`3) (b`d`3)
 
 -- Gets probability mass distribution for getting one specific outcome rolling n dice with x sides (write as 4`d`6 - four 6-sided dice)
-d :: (Integral i, Floating f) => Int -> i -> [f]
+d :: (Integral i, Floating f) => i -> i -> [f]
 d n x = getDistr n (1 / fromIntegral x)
