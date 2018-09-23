@@ -1,27 +1,43 @@
-import           Data.List
-import           Data.List.Split
-import           Numeric
-import           System.IO
-import           System.Environment 
-import           Control.Exception
-import           Data.Char
+import Data.List
+import Data.List.Split
+import Numeric
+import System.IO
+import System.Environment 
+import Control.Exception
+import Data.Char
 
-data RollStyle = Normal | Reroll deriving (Eq, Show, Read, Enum) 
+data RollStyle = Normal | Reroll | Exploding deriving (Eq, Show, Read, Enum) 
 
 -- Multinomial distribution probability mass function
 -- Gets probability of exact list of outcomes xs in n trials with probabilities of success ps
-getProbMass :: (Integral i, Floating f) => [i] -> i -> [f] -> f
-getProbMass xs n ps = (fromIntegral coeff) * (product $ zipWith (^^) ps xs)
+getProbMass :: (Integral i, Floating f) => i -> [f] -> [i] -> f
+getProbMass n ps xs = (fromIntegral coeff) * (product $ zipWith (^^) ps xs)
                       where coeff = (product [2..n]) `div` (product $ map (\x -> product [2..x]) xs)
+
+-- Gets probability mass distribution for n trials with probability of success p
+getDistr :: (Integral i, Floating f) => i -> f -> [f]
+getDistr n p = map (\k -> getProbMass n [(1-p), p] [(n-k), k]) [0..n]
 
 -- Generate a list of probabilities of [0,1,..] hits when rolling an exploding die with the chance p
 -- to produce a hit on each roll and chance e of the die exploding (Note: this is an infinite list)
 explosiveDice :: (Floating f) => f -> f -> [f]
 explosiveDice p e = (1-p):[p*(e^^x - e^^(x+1)) | x <- [0,1..]]
 
--- Gets probability mass distribution for n trials with probability of success p
-getDistr :: (Integral i, Floating f) => i -> f -> [f]
-getDistr n p = map (\ k -> getProbMass [(n-k), k] n [(1-p), p]) [0..n]
+-- This is a copy of _partition function from Math.Combinat.Partitions.Integer because I can't get it to compile.
+partitionInt :: (Integral i) => i -> [[i]]
+partitionInt d = go d d where go _ 0 = [[]]
+                              go h n = [ a:as | a <- [1..min n h], as <- go a (n-a) ]
+
+-- Gets probability mass distribution for exploding die pool of size n with probability of hit p and probability of explosion e
+getExplosiveDistr :: (Integral i, Floating f) => i -> f -> f -> [f]
+getExplosiveDistr n p e = map (\k -> sum $ map (getProbMass n $ explosiveDice p e) $ convertedParts k) [0..]
+                          where partsUnderLength h = filter (\x -> (genericLength x) <= n) $ partitionInt h
+                                convertedParts h = map (\xs -> (n-(sum xs)):xs) $ map reverse $ map (go h) $ map (groupBy (==)) $ partsUnderLength h
+                                go 0 _  = [] -- This will convert a list like [4,2,1,1,1] into list like [0,3,1,0,1]
+                                go s [] = 0:(go (s-1) [])
+                                go s xss@(xs@(x:_):next)
+                                 | s == x    = (genericLength xs):(go (s-1) next)
+                                 | otherwise = 0:(go (s-1) xss)
 
 -- Compares two probability mass distributions and calculates the odds that distr A will get more successes then distr B
 -- (number of net successes looked at is defined by r as a range, e.g. r=[0..2] will get odds of 0,1 and 2 net successes)
@@ -39,8 +55,9 @@ compareD3Pools :: (Integral i, Floating f) => [Int] -> RollStyle -> RollStyle ->
 compareD3Pools r rsA rsB a b = map (comparison!!) r
                                where comparison = convertToGE $ compareDistr range (makeDistr rsA a) (makeDistr rsB b)
                                      range = [0..(max (fromIntegral a) (last r))]
-                                     makeDistr rs n = case rs of Normal -> getDistr n (1/3)
-                                                                 Reroll -> getDistr n (5/9)
+                                     makeDistr rs n = case rs of Normal    -> getDistr n (1/3)
+                                                                 Reroll    -> getDistr n (5/9)
+                                                                 Exploding -> getExplosiveDistr n (1/3) (1/6)
 
 -- Get the odds of getting [0..4] net hits on opposed rolls of all combination of die pools sizes in ranges xr and yr
 generateTableValues :: (Integral i, Floating f) => RollStyle -> RollStyle -> [i] -> [i] -> [[[f]]]
